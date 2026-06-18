@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<meta charset="UTF-8">
+<title>FA BOT (At Your Service!)</title>
+<style>
+  body {
+    font-family: "Segoe UI", sans-serif;
+    background: linear-gradient(to right, #74ebd5, #9face6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+  }
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 500px;
+  height: 90vh; /* changed from 100vh to 80vh */
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+  overflow: hidden;
+}
+
+  .chat-header {
+    background: #25b5c5;
+    color: white;
+    text-align: center;
+    padding: 12px;
+    font-weight: bold;
+    font-size: 18px;
+  }
+  .controls {
+    display: flex;
+    align-items: center;
+    background: #f1f1f1;
+    padding: 10px;
+    gap: 8px;
+  }
+  select, input[type=text] {
+    padding: 6px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    font-size: 14px;
+  }
+  button {
+    background: #25b5c5;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  button:hover {
+    background: #1f9dae;
+  }
+  .chat-body {
+    flex: 1;
+    padding: 10px;
+    background: #fafafa;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+.msg {
+  padding: 6px 12px;          
+  border-radius: 12px;
+  max-width: 75%;
+  word-wrap: break-word;
+  white-space: pre-wrap;      
+  display: inline-block;      
+  line-height: 1.3;           
+  margin: 2px 0;              
+  vertical-align: top;     
+}
+
+
+.msg p {
+  margin: 0;                 
+  line-height: 1.3;
+}
+
+  .msg.user {
+    align-self: flex-end;
+    background: #d1e7ff;
+  }
+  .msg.bot {
+    align-self: flex-start;
+    background: #d8f3dc;
+  }
+  .chat-footer {
+    display: flex;
+    padding: 10px;
+    border-top: 1px solid #ddd;
+    background: #f7f7f7;
+  }
+  .chat-footer textarea {
+    flex: 1;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 8px;
+    font-size: 14px;
+    resize: none;
+    height: 40px;
+  }
+  .chat-footer button {
+    margin-left: 8px;
+    background: #25b5c5;
+  }
+  .tip {
+    font-size: 12px;
+    color: #777;
+    padding: 0 10px;
+  }
+  /* Modal */
+  .modal {
+    display: none;
+    position: fixed;
+    left: 0; top: 0;
+    width: 100%; height: 100%;
+    background-color: rgba(0,0,0,0.4);
+    z-index: 10;
+  }
+  .modal-content {
+    background: white;
+    border-radius: 10px;
+    width: 300px;
+    margin: 10% auto;
+    padding: 20px;
+    text-align: center;
+  }
+  .modal-content input, .modal-content textarea {
+    width: 90%;
+    margin: 5px 0;
+    padding: 6px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+  }
+</style>
+</head>
+<body>
+
+<div class="chat-container">
+  <div class="chat-header">FA BOT (At Your Service!)</div>
+
+  <div class="controls">
+    <select id="fieldSelect">
+      <option disabled selected>Choose field...</option>
+    </select>
+    <button id="setFieldBtn">Set Field</button>
+  </div>
+  <div class="tip">Tip: Select "Add custom field..." to create one</div>
+
+  <div class="chat-body" id="chatBody"></div>
+
+  <div class="chat-footer">
+    <textarea id="userInput" placeholder="Type your message..."></textarea>
+    <button id="sendBtn">Send</button>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal" id="addFieldModal">
+  <div class="modal-content">
+    <h3>Add Custom Field</h3>
+    <input type="text" id="customFieldName" placeholder="Field name">
+    <textarea id="customFieldInstructions" placeholder="Custom Instructions"></textarea>
+    <button id="saveFieldBtn">Add Field</button>
+  </div>
+</div>
+
+<script>
+const API_URL = "http://127.0.0.1:5000";
+const chatBody = document.getElementById("chatBody");
+const fieldSelect = document.getElementById("fieldSelect");
+const userInput = document.getElementById("userInput");
+let currentField = "Emotional";
+
+async function loadFields() {
+  try {
+    const res = await fetch(`${API_URL}/fields`);
+    const data = await res.json();
+    populateDropdown(data);
+  } catch {
+    populateDropdown(["Emotional","Trading","Medical","CS","Farming"]);
+  }
+}
+
+function populateDropdown(fields) {
+  fieldSelect.innerHTML = "";
+  fields.forEach(f => {
+    const opt = document.createElement("option");
+    opt.value = f;
+    opt.textContent = f;
+    fieldSelect.appendChild(opt);
+  });
+  const addOpt = document.createElement("option");
+  addOpt.value = "add";
+  addOpt.textContent = "➕ Add custom field...";
+  fieldSelect.appendChild(addOpt);
+}
+
+fieldSelect.addEventListener("change", () => {
+  if (fieldSelect.value === "add") {
+    document.getElementById("addFieldModal").style.display = "block";
+  }
+});
+
+document.getElementById("saveFieldBtn").addEventListener("click", async () => {
+  const name = document.getElementById("customFieldName").value.trim();
+  const instructions = document.getElementById("customFieldInstructions").value.trim();
+  if (!name || !instructions) return alert("Please fill both fields!");
+  await fetch(`${API_URL}/fields`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, instructions })
+  });
+  document.getElementById("addFieldModal").style.display = "none";
+  await loadFields();
+  fieldSelect.value = name;
+});
+
+document.getElementById("setFieldBtn").addEventListener("click", async () => {
+  const selected = fieldSelect.value;
+  if (!selected || selected === "add") return;
+  currentField = selected;
+  const res = await fetch(`${API_URL}/set_field`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: selected })
+  });
+  const data = await res.json();
+  addMessage(data.message, "bot");
+});
+
+async function sendMessage() {
+  const msg = userInput.value.trim();
+  if (!msg) return;
+  addMessage(msg, "user");
+  userInput.value = "";
+
+  const res = await fetch(`${API_URL}/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ field: currentField, message: msg })
+  });
+  const data = await res.json();
+  addMessage(data.response, "bot");
+}
+
+document.getElementById("sendBtn").addEventListener("click", sendMessage);
+
+userInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+function addMessage(text, cls="") {
+  const div = document.createElement("div");
+  div.className = "msg " + cls;
+  div.innerHTML = marked.parse(text); 
+  chatBody.appendChild(div);
+  chatBody.scrollTop = chatBody.scrollHeight;
+}
+
+
+window.onclick = function(e) {
+  if (e.target == document.getElementById("addFieldModal"))
+    document.getElementById("addFieldModal").style.display = "none";
+}
+
+loadFields();
+</script>
+
+</body>
+</html>
